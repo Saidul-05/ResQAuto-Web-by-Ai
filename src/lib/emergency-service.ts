@@ -43,6 +43,38 @@ export const emergencyService = {
       .subscribe();
   },
 
+  subscribeMechanicLocations(
+    mechanicIds: string[],
+    callback: (mechanic: Mechanic) => void,
+  ) {
+    // Create a channel for each mechanic to track their location updates
+    const channel = supabase.channel(`mechanics-location-${Date.now()}`);
+
+    // Subscribe to location updates for each mechanic
+    mechanicIds.forEach((id) => {
+      channel.on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "mechanics",
+          filter: `id=eq.${id}`,
+        },
+        (payload) => callback(payload.new as Mechanic),
+      );
+    });
+
+    // Start the subscription
+    const subscription = channel.subscribe();
+
+    // Return an object with unsubscribe method for cleanup
+    return {
+      unsubscribe: () => {
+        subscription.unsubscribe();
+      },
+    };
+  },
+
   async getNearbyMechanics(location: [number, number]): Promise<Mechanic[]> {
     const { data: mechanics, error } = await supabase.rpc(
       "get_nearby_mechanics",

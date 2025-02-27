@@ -8,8 +8,10 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
-import { Phone, Menu } from "lucide-react";
+import { Phone, Menu, Settings, LogOut } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useNavigate } from "react-router-dom";
+import { auth } from "@/lib/auth";
 
 interface NavbarProps {
   logo?: string;
@@ -17,12 +19,21 @@ interface NavbarProps {
 }
 
 const Navbar = ({ logo = "ResQ Auto", isEmergency = false }: NavbarProps) => {
+  const navigate = useNavigate();
+  const isAuthenticated = auth.isAuthenticated();
+  const isAdmin = auth.isAdmin();
+
+  const handleLogout = () => {
+    auth.logout();
+    navigate("/");
+  };
   const menuItems = [
     { label: "Home", href: "/" },
     { label: "Services", href: "/services" },
     { label: "How It Works", href: "/how-it-works" },
     { label: "About", href: "/about" },
     { label: "Contact", href: "/contact" },
+    { label: "Admin", href: "/admin" },
   ];
 
   return (
@@ -52,13 +63,45 @@ const Navbar = ({ logo = "ResQ Auto", isEmergency = false }: NavbarProps) => {
             </NavigationMenuList>
           </NavigationMenu>
 
-          <Button
-            variant={isEmergency ? "destructive" : "default"}
-            className="flex items-center gap-2"
-          >
-            <Phone className="h-4 w-4" />
-            {isEmergency ? "Emergency Assistance" : "Call Now"}
-          </Button>
+          {isAuthenticated ? (
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/admin")}
+                >
+                  <Settings className="h-4 w-4" />
+                  Admin Panel
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                className="flex items-center gap-2"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="flex items-center gap-2"
+                onClick={() => navigate("/login")}
+              >
+                Admin Login
+              </Button>
+              <Button
+                variant={isEmergency ? "destructive" : "default"}
+                className="flex items-center gap-2"
+              >
+                <Phone className="h-4 w-4" />
+                {isEmergency ? "Emergency Assistance" : "Call Now"}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Mobile Navigation */}
@@ -80,13 +123,45 @@ const Navbar = ({ logo = "ResQ Auto", isEmergency = false }: NavbarProps) => {
                     {item.label}
                   </a>
                 ))}
-                <Button
-                  variant={isEmergency ? "destructive" : "default"}
-                  className="flex items-center gap-2 mt-4"
-                >
-                  <Phone className="h-4 w-4" />
-                  {isEmergency ? "Emergency Assistance" : "Call Now"}
-                </Button>
+                {isAuthenticated ? (
+                  <>
+                    {isAdmin && (
+                      <Button
+                        variant="outline"
+                        className="flex items-center gap-2 mt-4 w-full"
+                        onClick={() => navigate("/admin")}
+                      >
+                        <Settings className="h-4 w-4" />
+                        Admin Panel
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      className="flex items-center gap-2 mt-4 w-full"
+                      onClick={handleLogout}
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Logout
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2 mt-4 w-full"
+                      onClick={() => navigate("/login")}
+                    >
+                      Admin Login
+                    </Button>
+                    <Button
+                      variant={isEmergency ? "destructive" : "default"}
+                      className="flex items-center gap-2 mt-4 w-full"
+                    >
+                      <Phone className="h-4 w-4" />
+                      {isEmergency ? "Emergency Assistance" : "Call Now"}
+                    </Button>
+                  </>
+                )}
               </div>
             </SheetContent>
           </Sheet>
