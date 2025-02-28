@@ -18,7 +18,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Card } from "@/components/ui/card";
-import { MapPin, Phone, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { MapPin, Phone, AlertCircle, Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   location: z.string().min(1, "Location is required"),
@@ -31,14 +32,17 @@ type EmergencyFormData = z.infer<typeof formSchema>;
 interface EmergencyRequestFormProps {
   onSubmit?: (data: EmergencyFormData) => void;
   isLoading?: boolean;
+  onRequestSubmit?: (request: EmergencyRequest) => void;
 }
 
 const EmergencyRequestForm = ({
   onSubmit,
   isLoading: externalIsLoading = false,
+  onRequestSubmit,
 }: EmergencyRequestFormProps) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Requesting Help...");
   const [activeRequest, setActiveRequest] = useState<EmergencyRequest | null>(
     null,
   );
@@ -55,9 +59,20 @@ const EmergencyRequestForm = ({
   const handleSubmit = async (data: EmergencyFormData) => {
     try {
       setIsLoading(true);
+
+      // Simulate network delay for demo purposes with loading state messages
+      setLoadingMessage("Requesting Help...");
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      setLoadingMessage("Locating nearby mechanics...");
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      setLoadingMessage("Sending request...");
+
       const request = await emergencyService.createRequest(data);
       setActiveRequest(request);
       onSubmit?.(data);
+      onRequestSubmit?.(request);
 
       toast({
         title: "Emergency request sent",
@@ -67,6 +82,19 @@ const EmergencyRequestForm = ({
 
       // Reset form
       form.reset();
+
+      // Analytics tracking (if implemented)
+      try {
+        console.log("Tracking emergency request", {
+          location: data.location,
+          hasDescription: !!data.description,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (analyticsError) {
+        console.error("Analytics error:", analyticsError);
+      }
+
+      return request;
     } catch (error) {
       console.error("Failed to create emergency request:", error);
       toast({
@@ -74,8 +102,78 @@ const EmergencyRequestForm = ({
         description: "Failed to send emergency request. Please try again.",
         variant: "destructive",
       });
+      throw error; // Re-throw to allow the calling function to handle it
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const isSubmitting = isLoading || externalIsLoading;
+  const [formError, setFormError] = useState<string>("");
+
+  const onSubmitForm = async (data: EmergencyFormData) => {
+    setFormError("");
+    try {
+      // Enhanced form validation
+
+      // Validate phone number format (comprehensive validation)
+      const phoneRegex = /^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/;
+      if (!phoneRegex.test(data.phone)) {
+        setFormError("Please enter a valid phone number (e.g., 555-123-4567)");
+        return;
+      }
+
+      // Validate location isn't just whitespace and has minimum length
+      if (data.location.trim().length < 5) {
+        setFormError(
+          "Please enter a more specific location (at least 5 characters)",
+        );
+        return;
+      }
+
+      // Validate description if provided (no profanity, reasonable length)
+      if (data.description) {
+        if (data.description.length > 500) {
+          setFormError(
+            "Description is too long. Please keep it under 500 characters.",
+          );
+          return;
+        }
+
+        // Simple profanity check (would be more comprehensive in production)
+        const profanityList = ["badword1", "badword2"];
+        if (
+          profanityList.some((word) =>
+            data.description?.toLowerCase().includes(word),
+          )
+        ) {
+          setFormError("Please keep your description appropriate.");
+          return;
+        }
+      }
+
+      await handleSubmit(data);
+    } catch (error) {
+      // Check for specific error types
+      if (error instanceof Error) {
+        if (
+          error.message.includes("network") ||
+          error.message.includes("connection")
+        ) {
+          setFormError(
+            "Network error. Please check your internet connection and try again.",
+          );
+        } else if (error.message.includes("timeout")) {
+          setFormError("Request timed out. Please try again.");
+        } else {
+          setFormError("An unexpected error occurred. Please try again.");
+        }
+      } else {
+        setFormError("An unexpected error occurred. Please try again.");
+      }
+
+      // Log detailed error for debugging
+      console.error("Form submission error:", error);
     }
   };
 
@@ -97,9 +195,16 @@ const EmergencyRequestForm = ({
           </p>
         </div>
 
+        {formError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{formError}</AlertDescription>
+          </Alert>
+        )}
+
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(handleSubmit)}
+            onSubmit={form.handleSubmit(onSubmitForm)}
             className="space-y-4"
           >
             <FormField
@@ -114,6 +219,8 @@ const EmergencyRequestForm = ({
                       <Input
                         placeholder="Enter your current location"
                         className="pl-10"
+                        disabled={isSubmitting}
+                        autoComplete="street-address"
                         {...field}
                       />
                     </div>
@@ -136,10 +243,16 @@ const EmergencyRequestForm = ({
                         type="tel"
                         placeholder="Enter your phone number"
                         className="pl-10"
+                        disabled={isSubmitting}
+                        autoComplete="tel"
+                        pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}"
                         {...field}
                       />
                     </div>
                   </FormControl>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Format: 555-123-4567
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -155,6 +268,7 @@ const EmergencyRequestForm = ({
                     <Textarea
                       placeholder="Briefly describe your emergency..."
                       className="resize-none"
+                      disabled={isSubmitting}
                       {...field}
                     />
                   </FormControl>
@@ -167,17 +281,23 @@ const EmergencyRequestForm = ({
               <Button
                 type="submit"
                 className="w-full bg-red-600 hover:bg-red-700"
-                disabled={isLoading}
+                disabled={isSubmitting}
               >
-                {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5 animate-pulse" />
-                    Requesting Help...
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    {loadingMessage}
                   </span>
                 ) : (
                   "Request Emergency Assistance"
                 )}
               </Button>
+              <p className="text-xs text-center text-muted-foreground mt-2">
+                By submitting this form, you agree to our{" "}
+                <a href="#" className="underline hover:text-blue-600">
+                  Terms of Service
+                </a>
+              </p>
             </div>
           </form>
         </Form>

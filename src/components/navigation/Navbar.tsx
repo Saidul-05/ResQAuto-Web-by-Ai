@@ -28,11 +28,11 @@ const Navbar = ({ logo = "ResQ Auto", isEmergency = false }: NavbarProps) => {
     navigate("/");
   };
   const menuItems = [
-    { label: "Home", href: "/" },
-    { label: "Services", href: "/services" },
-    { label: "How It Works", href: "/how-it-works" },
-    { label: "About", href: "/about" },
-    { label: "Contact", href: "/contact" },
+    { label: "Home", href: "#hero" },
+    { label: "Map", href: "#map" },
+    { label: "How It Works", href: "#how-it-works" },
+    { label: "Testimonials", href: "#testimonials" },
+    { label: "Contact", href: "#contact" },
     { label: "Admin", href: "/admin" },
   ];
 
@@ -54,7 +54,21 @@ const Navbar = ({ logo = "ResQ Auto", isEmergency = false }: NavbarProps) => {
                 <NavigationMenuItem key={item.label}>
                   <NavigationMenuLink
                     href={item.href}
-                    className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                    className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors scroll-smooth"
+                    onClick={(e) => {
+                      if (item.href.startsWith("#")) {
+                        e.preventDefault();
+                        const element = document.getElementById(
+                          item.href.substring(1),
+                        );
+                        if (element) {
+                          element.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start",
+                          });
+                        }
+                      }
+                    }}
                   >
                     {item.label}
                   </NavigationMenuLink>
@@ -119,6 +133,27 @@ const Navbar = ({ logo = "ResQ Auto", isEmergency = false }: NavbarProps) => {
                     key={item.label}
                     href={item.href}
                     className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                    onClick={(e) => {
+                      if (item.href.startsWith("#")) {
+                        e.preventDefault();
+                        const element = document.getElementById(
+                          item.href.substring(1),
+                        );
+                        if (element) {
+                          element.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start",
+                          });
+                          // Close the sheet after clicking a navigation item
+                          const closeButton = document.querySelector(
+                            "[data-radix-collection-item]",
+                          );
+                          if (closeButton instanceof HTMLElement) {
+                            closeButton.click();
+                          }
+                        }
+                      }
+                    }}
                   >
                     {item.label}
                   </a>
