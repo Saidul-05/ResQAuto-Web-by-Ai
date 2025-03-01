@@ -41,6 +41,22 @@ const MechanicList = ({
     if (isMobile && onClose) {
       onClose();
     }
+
+    // Track mechanic selection in analytics
+    try {
+      import("@/components/analytics/AnalyticsTracker").then(
+        ({ trackEvent }) => {
+          trackEvent({
+            category: "Mechanic",
+            action: "Select",
+            label: `${mechanic.name} (${mechanic.status})`,
+            value: 1,
+          });
+        },
+      );
+    } catch (error) {
+      console.error("Analytics error:", error);
+    }
   };
 
   return (
@@ -120,6 +136,23 @@ const MechanicList = ({
                     className="text-xs h-8"
                     onClick={(e) => {
                       e.stopPropagation();
+
+                      // Track call mechanic action
+                      try {
+                        import("@/components/analytics/AnalyticsTracker").then(
+                          ({ trackEvent }) => {
+                            trackEvent({
+                              category: "Mechanic",
+                              action: "Call",
+                              label: mechanic.name,
+                              value: 1,
+                            });
+                          },
+                        );
+                      } catch (error) {
+                        console.error("Analytics error:", error);
+                      }
+
                       window.location.href = `tel:${mechanic.phone.replace(/[^0-9]/g, "")}`;
                     }}
                   >
@@ -135,6 +168,23 @@ const MechanicList = ({
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
+
+                            // Track call mechanic action
+                            try {
+                              import(
+                                "@/components/analytics/AnalyticsTracker"
+                              ).then(({ trackEvent }) => {
+                                trackEvent({
+                                  category: "Mechanic",
+                                  action: "Call",
+                                  label: mechanic.name,
+                                  value: 1,
+                                });
+                              });
+                            } catch (error) {
+                              console.error("Analytics error:", error);
+                            }
+
                             window.location.href = `tel:${mechanic.phone.replace(/[^0-9]/g, "")}`;
                           }}
                         >

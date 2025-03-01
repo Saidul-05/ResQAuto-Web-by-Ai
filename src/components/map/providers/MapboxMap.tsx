@@ -2,15 +2,15 @@ import React, { useState, useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { emergencyService } from "@/lib/emergency-service";
+import { trackEvent } from "@/components/analytics/AnalyticsTracker";
+import FilterControls from "../FilterControls";
+import MechanicList from "../MechanicList";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 
 // Set your Mapbox access token
 mapboxgl.accessToken =
   "pk.eyJ1IjoidGVtcG9sYWJzIiwiYSI6ImNscjRwbDNvbzBjemwyam1qY3N2ZnVxY2kifQ.t6SLPGtbGwLtGcqXmxoLzA";
-import { Card } from "../ui/card";
-import { Button } from "../ui/button";
-import { MapPin, ChevronLeft, ChevronRight } from "lucide-react";
-import MechanicList from "./MechanicList";
-import FilterControls from "./FilterControls";
 
 interface Mechanic {
   id: string;
@@ -22,9 +22,14 @@ interface Mechanic {
   phone: string;
 }
 
-interface AssistanceMapProps {
-  mechanics?: Mechanic[];
+interface MapboxMapProps {
   onMechanicSelect?: (mechanic: Mechanic) => void;
+  filters?: {
+    statusFilter: string;
+    specialtyFilter: string[];
+    minRating: number;
+    maxDistance: number;
+  };
 }
 
 const defaultMechanics: Mechanic[] = [
@@ -57,10 +62,15 @@ const defaultMechanics: Mechanic[] = [
   },
 ];
 
-const AssistanceMap = ({
-  mechanics = defaultMechanics,
+const MapboxMap: React.FC<MapboxMapProps> = ({
   onMechanicSelect = () => {},
-}: AssistanceMapProps) => {
+  filters = {
+    statusFilter: "all",
+    specialtyFilter: [],
+    minRating: 0,
+    maxDistance: 10,
+  },
+}) => {
   const [selectedMechanic, setSelectedMechanic] = useState<Mechanic | null>(
     null,
   );
@@ -75,11 +85,16 @@ const AssistanceMap = ({
 
   // Filter states
   const [filteredMechanics, setFilteredMechanics] =
-    useState<Mechanic[]>(mechanics);
+    useState<Mechanic[]>(defaultMechanics);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [specialtyFilter, setSpecialtyFilter] = useState<string[]>([]);
   const [minRating, setMinRating] = useState<number>(0);
   const [maxDistance, setMaxDistance] = useState<number>(10); // in miles
+
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+  const userMarker = useRef<mapboxgl.Marker | null>(null);
+  const mechanicMarkers = useRef<mapboxgl.Marker[]>([]);
 
   const handleMechanicSelect = (mechanic: Mechanic) => {
     setSelectedMechanic(mechanic);
@@ -87,25 +102,16 @@ const AssistanceMap = ({
 
     // Track mechanic selection in analytics
     try {
-      import("@/components/analytics/AnalyticsTracker").then(
-        ({ trackMechanicSelection }) => {
-          trackMechanicSelection({
-            mechanicId: mechanic.id,
-            mechanicName: mechanic.name,
-            distance: mechanic.distance,
-            rating: mechanic.rating,
-          });
-        },
-      );
+      trackEvent({
+        category: "Mechanic",
+        action: "Select",
+        label: `${mechanic.name} (${mechanic.status})`,
+        value: 1,
+      });
     } catch (error) {
       console.error("Analytics error:", error);
     }
   };
-
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const userMarker = useRef<mapboxgl.Marker | null>(null);
-  const mechanicMarkers = useRef<mapboxgl.Marker[]>([]);
 
   // Check if mobile device and handle responsive behavior
   useEffect(() => {
@@ -138,42 +144,52 @@ const AssistanceMap = ({
 
   // Apply filters
   useEffect(() => {
-    let filtered = [...mechanics];
+    let filtered = [...defaultMechanics];
 
     // Filter by status
-    if (statusFilter !== "all") {
+    if (filters.statusFilter !== "all") {
       filtered = filtered.filter(
-        (mechanic) => mechanic.status === statusFilter,
+        (mechanic) => mechanic.status === filters.statusFilter,
       );
     }
 
     // Filter by specialty
-    if (specialtyFilter.length > 0) {
+    if (filters.specialtyFilter.length > 0) {
       filtered = filtered.filter((mechanic) =>
         mechanic.specialties.some((specialty) =>
-          specialtyFilter.includes(specialty),
+          filters.specialtyFilter.includes(specialty),
         ),
       );
     }
 
     // Filter by rating
-    if (minRating > 0) {
-      filtered = filtered.filter((mechanic) => mechanic.rating >= minRating);
+    if (filters.minRating > 0) {
+      filtered = filtered.filter(
+        (mechanic) => mechanic.rating >= filters.minRating,
+      );
     }
 
     // Filter by distance (simplified for demo)
-    if (maxDistance < 10) {
+    if (filters.maxDistance < 10) {
       filtered = filtered.filter((mechanic) => {
         // Extract numeric value from distance string (e.g., "0.5 miles" -> 0.5)
         const distanceValue = parseFloat(mechanic.distance.split(" ")[0]);
-        return distanceValue <= maxDistance;
+        return distanceValue <= filters.maxDistance;
       });
     }
 
     setFilteredMechanics(filtered);
-  }, [mechanics, statusFilter, specialtyFilter, minRating, maxDistance]);
 
-  // Get user's location with enhanced error handling and analytics tracking
+    // Track filter application
+    trackEvent({
+      category: "Map",
+      action: "Apply Filters",
+      label: `Filters Applied: ${filtered.length} results`,
+      value: filtered.length,
+    });
+  }, [filters]); // Only depend on the filters prop
+
+  // Get user's location
   useEffect(() => {
     setLoadingMessage("Detecting your location...");
     if (!navigator.geolocation) {
@@ -181,22 +197,6 @@ const AssistanceMap = ({
         "Geolocation is not supported by your browser. Please use a modern browser with location services.",
       );
       setIsLoading(false);
-
-      // Track geolocation not supported error
-      try {
-        import("@/components/analytics/AnalyticsTracker").then(
-          ({ trackEvent }) => {
-            trackEvent({
-              category: "Map",
-              action: "Location Error",
-              label: "Geolocation Not Supported",
-              value: 0,
-            });
-          },
-        );
-      } catch (error) {
-        console.error("Analytics error:", error);
-      }
       return;
     }
 
@@ -207,22 +207,6 @@ const AssistanceMap = ({
           "Location request timed out. Please check your device settings and try again.",
         );
         setIsLoading(false);
-
-        // Track location timeout error
-        try {
-          import("@/components/analytics/AnalyticsTracker").then(
-            ({ trackEvent }) => {
-              trackEvent({
-                category: "Map",
-                action: "Location Error",
-                label: "Timeout",
-                value: 0,
-              });
-            },
-          );
-        } catch (error) {
-          console.error("Analytics error:", error);
-        }
       }
     }, 10000); // 10 second timeout
 
@@ -238,100 +222,39 @@ const AssistanceMap = ({
           setTimeout(() => {
             setIsLoading(false);
           }, 500);
-
-          // Track successful location acquisition
-          try {
-            import("@/components/analytics/AnalyticsTracker").then(
-              ({ trackEvent }) => {
-                trackEvent({
-                  category: "Map",
-                  action: "Location Detected",
-                  label: "Success",
-                  value: 1,
-                });
-              },
-            );
-          } catch (error) {
-            console.error("Analytics error:", error);
-          }
-
-          // Log successful location acquisition for debugging
-          console.log("Location acquired successfully", {
-            latitude,
-            longitude,
-          });
         },
         (error) => {
           clearTimeout(locationTimeout);
           let errorMessage = "Unable to get your location";
-          let errorLabel = "Unknown";
 
           switch (error.code) {
             case error.PERMISSION_DENIED:
               errorMessage =
                 "Location access was denied. Please enable location services in your browser settings and refresh the page.";
-              errorLabel = "Permission Denied";
               break;
             case error.POSITION_UNAVAILABLE:
               errorMessage =
                 "Location information is unavailable. Please check your device's GPS or network connection and try again.";
-              errorLabel = "Position Unavailable";
               break;
             case error.TIMEOUT:
               errorMessage =
                 "Location request timed out. Please try again or use the 'Use Default Location' option.";
-              errorLabel = "Timeout";
               break;
             default:
               errorMessage = `Location error: ${error.message || "Unknown error"}. Please try again.`;
-              errorLabel = "Other";
           }
 
           setLocationError(errorMessage);
           setIsLoading(false);
-          console.error("Geolocation error:", error);
-
-          // Track location error
-          try {
-            import("@/components/analytics/AnalyticsTracker").then(
-              ({ trackEvent }) => {
-                trackEvent({
-                  category: "Map",
-                  action: "Location Error",
-                  label: errorLabel,
-                  value: 0,
-                });
-              },
-            );
-          } catch (error) {
-            console.error("Analytics error:", error);
-          }
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
       );
     } catch (e) {
       clearTimeout(locationTimeout);
-      console.error("Unexpected error getting location:", e);
       setLocationError(
         "An unexpected error occurred while trying to get your location. Please refresh the page and try again.",
       );
       setIsLoading(false);
-
-      // Track unexpected location error
-      try {
-        import("@/components/analytics/AnalyticsTracker").then(
-          ({ trackEvent }) => {
-            trackEvent({
-              category: "Map",
-              action: "Location Error",
-              label: "Unexpected Error",
-              value: 0,
-            });
-          },
-        );
-      } catch (error) {
-        console.error("Analytics error:", error);
-      }
     }
 
     return () => clearTimeout(locationTimeout);
@@ -397,33 +320,7 @@ const AssistanceMap = ({
     }
   }, [userLocation]);
 
-  // Subscribe to mechanic location updates
-  useEffect(() => {
-    if (!userLocation) return;
-
-    const subscription = emergencyService.subscribeMechanicLocations(
-      mechanics.map((m) => m.id),
-      (updatedMechanic) => {
-        const index = mechanics.findIndex((m) => m.id === updatedMechanic.id);
-        if (index !== -1) {
-          const updatedMechanics = [...mechanics];
-          updatedMechanics[index] = updatedMechanic;
-          // Update marker position
-          if (mechanicMarkers.current[index]) {
-            mechanicMarkers.current[index].setLngLat(
-              updatedMechanic.current_location,
-            );
-          }
-        }
-      },
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [mechanics, userLocation]);
-
-  // Add mechanic markers with improved functionality and animations
+  // Add mechanic markers
   useEffect(() => {
     if (!map.current || !userLocation) return;
 
@@ -445,7 +342,7 @@ const AssistanceMap = ({
         // Add new markers for mechanics
         filteredMechanics.forEach((mechanic, index) => {
           try {
-            // Create custom marker element with pulse animation for available mechanics
+            // Create custom marker element
             const el = document.createElement("div");
             el.className = "mechanic-marker";
             el.style.backgroundColor =
@@ -455,34 +352,8 @@ const AssistanceMap = ({
             el.style.borderRadius = "50%";
             el.style.border = "2px solid white";
             el.style.cursor = "pointer";
-            el.style.boxShadow = "0 0 0 rgba(34, 197, 94, 0.4)";
 
-            // Add pulse animation for available mechanics
-            if (mechanic.status === "available") {
-              el.style.animation = "pulse 2s infinite";
-              // Add CSS for pulse animation if not already in the document
-              if (!document.getElementById("pulse-animation")) {
-                const style = document.createElement("style");
-                style.id = "pulse-animation";
-                style.innerHTML = `
-                  @keyframes pulse {
-                    0% {
-                      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
-                    }
-                    70% {
-                      box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
-                    }
-                    100% {
-                      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
-                    }
-                  }
-                `;
-                document.head.appendChild(style);
-              }
-            }
-
-            // Calculate a realistic position near the user for demo purposes
-            // Use a spiral pattern to distribute mechanics around the user
+            // Calculate a position near the user for demo purposes
             const angle = index * 137.5 * (Math.PI / 180); // Golden angle in radians
             const radius = 0.002 + index * 0.0005; // Increasing radius for spiral
             const mechanicLocation: [number, number] = [
@@ -490,86 +361,25 @@ const AssistanceMap = ({
               userLocation[1] + radius * Math.sin(angle),
             ];
 
-            // Create popup with enhanced styling and information
-            const popup = new mapboxgl.Popup({
-              offset: 25,
-              closeButton: false,
-            }).setHTML(
-              `<div class="p-3 max-w-xs">
-                  <h3 class="font-bold text-base mb-1">${mechanic.name}</h3>
-                  <div class="flex items-center mb-1">
-                    <span class="inline-block w-2 h-2 rounded-full ${mechanic.status === "available" ? "bg-green-500" : "bg-gray-400"} mr-2"></span>
-                    <p class="text-sm">${mechanic.status === "available" ? "Available Now" : "Currently Busy"}</p>
-                  </div>
-                  <p class="text-sm mb-1">${mechanic.distance} away</p>
-                  <div class="mt-2 text-xs">
-                    <span class="font-medium">Specialties:</span> ${mechanic.specialties.join(", ")}
-                  </div>
-                  <div class="mt-2 text-xs flex items-center">
-                    <span class="font-medium mr-1">Rating:</span>
-                    <span class="text-yellow-500">${"★".repeat(Math.floor(mechanic.rating))}</span>
-                    <span class="text-gray-300">${"★".repeat(5 - Math.floor(mechanic.rating))}</span>
-                    <span class="ml-1">(${mechanic.rating})</span>
-                  </div>
-                  <div class="mt-2 pt-2 border-t border-gray-100 text-center">
-                    <button class="text-sm text-blue-600 hover:text-blue-800 font-medium">Select Mechanic</button>
-                  </div>
-                </div>`,
-            );
-
-            // Create and add the marker to the map
             const marker = new mapboxgl.Marker(el)
               .setLngLat(mechanicLocation)
-              .setPopup(popup)
+              .setPopup(
+                new mapboxgl.Popup({ offset: 25 }).setHTML(
+                  `<div class="p-2">
+                  <h3 class="font-bold text-base">${mechanic.name}</h3>
+                  <p class="text-sm">${mechanic.status === "available" ? "Available Now" : "Currently Busy"}</p>
+                  <p class="text-sm">${mechanic.distance} away</p>
+                  <div class="mt-1 text-xs">
+                    <span class="font-medium">Specialties:</span> ${mechanic.specialties.join(", ")}
+                  </div>
+                </div>`,
+                ),
+              )
               .addTo(map.current);
 
-            // Add click event to marker with analytics tracking
+            // Add click event to marker
             el.addEventListener("click", () => {
-              // Track marker click in analytics
-              try {
-                import("@/components/analytics/AnalyticsTracker").then(
-                  ({ trackEvent }) => {
-                    trackEvent({
-                      category: "Map",
-                      action: "Mechanic Marker Click",
-                      label: mechanic.name,
-                      value: 1,
-                    });
-                  },
-                );
-              } catch (error) {
-                console.error("Analytics error:", error);
-              }
-
-              // Select the mechanic
               handleMechanicSelect(mechanic);
-
-              // Fly to the mechanic location with animation
-              map.current?.flyTo({
-                center: mechanicLocation,
-                zoom: 14,
-                speed: 1.2,
-                curve: 1.42,
-                essential: true,
-              });
-            });
-
-            // Add popup open event listener for analytics
-            popup.on("open", () => {
-              try {
-                import("@/components/analytics/AnalyticsTracker").then(
-                  ({ trackEvent }) => {
-                    trackEvent({
-                      category: "Map",
-                      action: "Mechanic Popup Open",
-                      label: mechanic.name,
-                      value: 1,
-                    });
-                  },
-                );
-              } catch (error) {
-                console.error("Analytics error:", error);
-              }
             });
 
             mechanicMarkers.current.push(marker);
@@ -588,7 +398,7 @@ const AssistanceMap = ({
 
   // Get all unique specialties for filter
   const allSpecialties = Array.from(
-    new Set(mechanics.flatMap((mechanic) => mechanic.specialties)),
+    new Set(defaultMechanics.flatMap((mechanic) => mechanic.specialties)),
   );
 
   // Handle specialty filter change
@@ -600,8 +410,15 @@ const AssistanceMap = ({
     }
   };
 
+  const resetFilters = () => {
+    setStatusFilter("all");
+    setSpecialtyFilter([]);
+    setMinRating(0);
+    setMaxDistance(10);
+  };
+
   return (
-    <div className="w-full h-[600px] bg-gray-100 p-4 relative">
+    <div className="w-full h-full relative">
       {isLoading && (
         <div className="absolute inset-0 bg-white/80 z-50 flex items-center justify-center">
           <div className="text-center">
@@ -641,10 +458,6 @@ const AssistanceMap = ({
                   Use Default Location
                 </Button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                If the problem persists, please check your internet connection
-                and location settings.
-              </p>
             </div>
           </div>
         </div>
@@ -665,12 +478,7 @@ const AssistanceMap = ({
           setMaxDistance={setMaxDistance}
           allSpecialties={allSpecialties}
           filteredCount={filteredMechanics.length}
-          resetFilters={() => {
-            setStatusFilter("all");
-            setSpecialtyFilter([]);
-            setMinRating(0);
-            setMaxDistance(10);
-          }}
+          resetFilters={resetFilters}
         />
 
         {/* Desktop mechanic cards */}
@@ -731,4 +539,4 @@ const AssistanceMap = ({
   );
 };
 
-export default AssistanceMap;
+export default MapboxMap;

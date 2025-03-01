@@ -1,7 +1,8 @@
-import React from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useRef } from "react";
+import { motion, useAnimation, useInView } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { PhoneCall, MapPin, Clock } from "lucide-react";
+import { trackEvent } from "@/components/analytics/AnalyticsTracker";
 
 interface HeroSectionProps {
   title?: string;
@@ -16,8 +17,62 @@ const HeroSection = ({
   subtitle = "Professional mechanics at your service, anywhere, anytime",
   backgroundUrl = "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&q=80",
   onEmergencyClick = () => console.log("Emergency assistance requested"),
-  onExploreMapClick = () => console.log("Explore map clicked"),
+  onExploreMapClick = () => {
+    const mapSection = document.getElementById("map");
+    if (mapSection) {
+      mapSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  },
 }: HeroSectionProps) => {
+  const controls = useAnimation();
+
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, amount: 0.3 });
+
+  useEffect(() => {
+    // Start the animation sequence when component is in view
+    const animateHero = async () => {
+      if (isInView) {
+        // Track hero section view
+        trackEvent({
+          category: "Section",
+          action: "View",
+          label: "Hero",
+          value: 1,
+        });
+
+        // Staggered animation sequence
+        await controls.start({
+          opacity: 1,
+          y: 0,
+          transition: { duration: 0.8, ease: "easeOut" },
+        });
+      }
+    };
+
+    animateHero();
+  }, [controls, isInView]);
+
+  // Track button clicks
+  const handleEmergencyClick = () => {
+    trackEvent({
+      category: "Button",
+      action: "Click",
+      label: "Emergency Assistance",
+      value: 1,
+    });
+    onEmergencyClick();
+  };
+
+  const handleExploreMapClick = () => {
+    trackEvent({
+      category: "Button",
+      action: "Click",
+      label: "Explore Map",
+      value: 1,
+    });
+    onExploreMapClick();
+  };
   return (
     <div className="relative w-full h-[800px] bg-gray-900 overflow-hidden">
       {/* Background Image with Overlay */}
@@ -33,9 +88,9 @@ const HeroSection = ({
       {/* Content Container */}
       <div className="relative h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col justify-center">
         <motion.div
+          ref={ref}
           initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
+          animate={controls}
           className="text-center"
         >
           <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
@@ -51,7 +106,7 @@ const HeroSection = ({
               size="lg"
               variant="destructive"
               className="w-full sm:w-auto text-lg px-8 py-6"
-              onClick={onEmergencyClick}
+              onClick={handleEmergencyClick}
             >
               <PhoneCall className="mr-2 h-5 w-5" />
               Request Emergency Assistance
@@ -60,7 +115,7 @@ const HeroSection = ({
               size="lg"
               variant="outline"
               className="w-full sm:w-auto text-lg px-8 py-6 bg-white/10 hover:bg-white/20"
-              onClick={onExploreMapClick}
+              onClick={handleExploreMapClick}
             >
               <MapPin className="mr-2 h-5 w-5" />
               Explore Nearby Mechanics

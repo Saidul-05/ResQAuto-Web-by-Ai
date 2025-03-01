@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardDescription,
@@ -8,7 +8,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Save } from "lucide-react";
+import { Save, Map } from "lucide-react";
+import { useFeatures } from "@/contexts/FeatureContext";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { trackEvent } from "@/components/analytics/AnalyticsTracker";
 
 interface Feature {
   id: string;
@@ -25,6 +29,16 @@ interface Feature {
 }
 
 const FeatureToggle = () => {
+  const {
+    features: contextFeatures,
+    toggleFeature,
+    setFeatureEnabled,
+    mapProvider,
+    setMapProvider,
+  } = useFeatures();
+  const [selectedMapProvider, setSelectedMapProvider] =
+    useState<string>(mapProvider);
+
   const [features, setFeatures] = useState<Feature[]>([
     {
       id: "hero",
@@ -91,6 +105,11 @@ const FeatureToggle = () => {
     },
   ]);
 
+  // Initialize map provider from context
+  useEffect(() => {
+    setSelectedMapProvider(mapProvider);
+  }, [mapProvider]);
+
   const [hasChanges, setHasChanges] = useState(false);
 
   const handleToggle = (id: string) => {
@@ -100,11 +119,53 @@ const FeatureToggle = () => {
       ),
     );
     setHasChanges(true);
+
+    // Track feature toggle
+    trackEvent({
+      category: "Admin",
+      action: "Toggle Feature",
+      label: id,
+      value: features.find((f) => f.id === id)?.enabled ? 0 : 1,
+    });
+  };
+
+  const handleMapProviderChange = (provider: string) => {
+    setSelectedMapProvider(provider);
+    setHasChanges(true);
+
+    // Track map provider change
+    trackEvent({
+      category: "Admin",
+      action: "Change Map Provider",
+      label: provider,
+      value: 1,
+    });
   };
 
   const saveChanges = () => {
-    // In a real app, this would save to a database
+    // Save regular features
+    features.forEach((feature) => {
+      // Map to context feature IDs if needed
+      const contextId = feature.id;
+      if (contextFeatures.hasOwnProperty(contextId)) {
+        setFeatureEnabled(contextId, feature.enabled);
+      }
+    });
+
+    // Save map provider selection
+    setMapProvider(selectedMapProvider as any);
+
     console.log("Saving feature configuration:", features);
+    console.log("Selected map provider:", selectedMapProvider);
+
+    // Track save action
+    trackEvent({
+      category: "Admin",
+      action: "Save Features",
+      label: `Map Provider: ${selectedMapProvider}`,
+      value: 1,
+    });
+
     setHasChanges(false);
   };
 
@@ -136,6 +197,48 @@ const FeatureToggle = () => {
         applied immediately after saving.
       </p>
 
+      {/* Map Provider Selection */}
+      <div className="space-y-4 mb-8">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <Map className="h-5 w-5" />
+          Map Provider
+        </h3>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Select Map Provider</CardTitle>
+            <CardDescription>
+              Choose which map provider to use for the interactive map
+            </CardDescription>
+
+            <div className="mt-4">
+              <RadioGroup
+                value={selectedMapProvider}
+                onValueChange={handleMapProviderChange}
+              >
+                <div className="flex items-center space-x-2 mb-2">
+                  <RadioGroupItem value="mapbox" id="mapbox" />
+                  <Label htmlFor="mapbox">Mapbox</Label>
+                </div>
+                <div className="flex items-center space-x-2 mb-2">
+                  <RadioGroupItem value="google" id="google" />
+                  <Label htmlFor="google">Google Maps</Label>
+                </div>
+                <div className="flex items-center space-x-2 mb-2">
+                  <RadioGroupItem value="leaflet" id="leaflet" />
+                  <Label htmlFor="leaflet">Leaflet (OpenStreetMap)</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="none" id="none" />
+                  <Label htmlFor="none">None (Disable Map)</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </CardHeader>
+        </Card>
+        <Separator className="my-6" />
+      </div>
+
+      {/* Other Feature Toggles */}
       {sections.map((section) => {
         const sectionFeatures = features.filter(
           (f) => f.section === section.id,

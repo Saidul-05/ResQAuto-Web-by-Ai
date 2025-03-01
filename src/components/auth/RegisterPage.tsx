@@ -12,17 +12,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Mail, Lock, AlertCircle, Loader2 } from "lucide-react";
-import { trackEvent } from "@/components/analytics/AnalyticsTracker";
+import { Mail, Lock, User, AlertCircle, Loader2 } from "lucide-react";
 
-const LoginPage = () => {
+const RegisterPage = () => {
   const navigate = useNavigate();
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signUp, signInWithGoogle } = useAuth();
 
   const [formData, setFormData] = useState({
+    name: "",
     email: "",
     password: "",
+    confirmPassword: "",
+    role: "user" as "user" | "mechanic",
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -33,74 +36,63 @@ const LoginPage = () => {
     setFormData({ ...formData, [name]: value });
   };
 
+  const handleRoleChange = (value: string) => {
+    setFormData({ ...formData, role: value as "user" | "mechanic" });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (!formData.email || !formData.password) {
-      setError("Email and password are required");
+    // Validate form
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.password ||
+      !formData.confirmPassword
+    ) {
+      setError("All fields are required");
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      await signIn(formData.email, formData.password);
-
-      // Track successful login
-      trackEvent({
-        category: "Auth",
-        action: "Login",
-        label: "Email",
-        value: 1,
-      });
-
+      await signUp(
+        formData.email,
+        formData.password,
+        formData.name,
+        formData.role,
+      );
       navigate("/");
     } catch (err: any) {
-      setError(
-        err.message || "Failed to sign in. Please check your credentials.",
-      );
-
-      // Track failed login attempt (without sensitive info)
-      trackEvent({
-        category: "Auth",
-        action: "Login Failed",
-        label: "Email",
-        value: 0,
-      });
+      setError(err.message || "Failed to register. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignUp = async () => {
     setError("");
     setIsLoading(true);
 
     try {
       await signInWithGoogle();
-
-      // Track successful Google login
-      trackEvent({
-        category: "Auth",
-        action: "Login",
-        label: "Google",
-        value: 1,
-      });
-
       navigate("/");
     } catch (err: any) {
       setError(
-        err.message || "Failed to sign in with Google. Please try again.",
+        err.message || "Failed to sign up with Google. Please try again.",
       );
-
-      // Track failed Google login
-      trackEvent({
-        category: "Auth",
-        action: "Login Failed",
-        label: "Google",
-        value: 0,
-      });
     } finally {
       setIsLoading(false);
     }
@@ -111,10 +103,10 @@ const LoginPage = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
-            Sign In
+            Create an Account
           </CardTitle>
           <CardDescription className="text-center">
-            Enter your credentials to access your account
+            Enter your information to create an account
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -125,6 +117,21 @@ const LoginPage = () => {
             </Alert>
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  id="name"
+                  name="name"
+                  placeholder="John Doe"
+                  value={formData.name}
+                  onChange={handleChange}
+                  className="pl-10"
+                  required
+                />
+              </div>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
@@ -142,22 +149,7 @@ const LoginPage = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <a
-                  href="#"
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    // Handle password reset
-                    alert(
-                      "Password reset functionality would be implemented here",
-                    );
-                  }}
-                >
-                  Forgot password?
-                </a>
-              </div>
+              <Label htmlFor="password">Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
@@ -172,14 +164,47 @@ const LoginPage = () => {
                 />
               </div>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className="pl-10"
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>I am a:</Label>
+              <RadioGroup
+                value={formData.role}
+                onValueChange={handleRoleChange}
+                className="flex space-x-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="user" id="user" />
+                  <Label htmlFor="user">User</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="mechanic" id="mechanic" />
+                  <Label htmlFor="mechanic">Mechanic</Label>
+                </div>
+              </RadioGroup>
+            </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Signing in...
+                  Creating Account...
                 </span>
               ) : (
-                "Sign In"
+                "Sign Up"
               )}
             </Button>
           </form>
@@ -198,7 +223,7 @@ const LoginPage = () => {
           <Button
             variant="outline"
             className="w-full"
-            onClick={handleGoogleSignIn}
+            onClick={handleGoogleSignUp}
             disabled={isLoading}
           >
             <svg
@@ -224,17 +249,17 @@ const LoginPage = () => {
                 fill="#EA4335"
               />
             </svg>
-            Sign in with Google
+            Sign up with Google
           </Button>
         </CardContent>
         <CardFooter className="flex justify-center">
           <p className="text-sm text-center text-gray-600">
-            Don't have an account?{" "}
+            Already have an account?{" "}
             <Link
-              to="/register"
+              to="/login"
               className="text-blue-600 hover:text-blue-800 font-medium"
             >
-              Sign up
+              Sign in
             </Link>
           </p>
         </CardFooter>
@@ -243,4 +268,4 @@ const LoginPage = () => {
   );
 };
 
-export default LoginPage;
+export default RegisterPage;

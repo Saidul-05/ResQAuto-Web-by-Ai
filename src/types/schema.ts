@@ -19,17 +19,14 @@ export type ServiceType =
 export interface EmergencyRequest {
   id: string;
   location: string;
-  coordinates: [number, number];
+  coordinates?: [number, number];
   phone: string;
   description?: string;
   status: EmergencyRequestStatus;
-  service_type?: ServiceType;
+  service_type?: string;
   created_at: string;
   updated_at: string;
   mechanic_id?: string;
-  user_id?: string;
-  estimated_arrival_time?: string;
-  actual_arrival_time?: string;
   completion_time?: string;
   rating?: number;
   review?: string;
@@ -38,56 +35,68 @@ export interface EmergencyRequest {
 export interface Mechanic {
   id: string;
   name: string;
-  phone: string;
   email: string;
+  phone: string;
+  specialties: string[];
   rating: number;
-  total_reviews: number;
-  specialties: ServiceType[];
   status: MechanicStatus;
   current_location: [number, number];
-  service_radius_km: number;
-  vehicle_info: {
-    make: string;
-    model: string;
-    year: string;
-    plate_number: string;
-  };
-  certification_ids: string[];
-  insurance_expiry: string;
-  created_at: string;
-  updated_at: string;
+  profile_image?: string;
+  verified: boolean;
+  active_since: string;
+  completed_jobs: number;
 }
 
-export interface MechanicCertification {
+export interface User {
   id: string;
-  mechanic_id: string;
-  certification_type: string;
-  issuing_authority: string;
-  certification_number: string;
-  issue_date: string;
-  expiry_date: string;
-  verification_url?: string;
+  email: string;
+  name: string;
+  phone?: string;
+  role: "user" | "mechanic" | "admin";
   created_at: string;
-  updated_at: string;
+  last_login?: string;
+  profile_image?: string;
+  saved_locations?: {
+    name: string;
+    coordinates: [number, number];
+  }[];
+  payment_methods?: {
+    id: string;
+    type: "credit_card" | "paypal";
+    last_four?: string;
+    expires?: string;
+    default: boolean;
+  }[];
 }
 
-export interface ServiceArea {
+export interface ServiceRequest {
   id: string;
-  mechanic_id: string;
-  coordinates: [number, number];
-  radius_km: number;
-  is_active: boolean;
+  user_id: string;
+  mechanic_id?: string;
+  service_type: string;
+  status: "pending" | "accepted" | "in_progress" | "completed" | "cancelled";
+  location: [number, number];
+  address: string;
+  description?: string;
   created_at: string;
   updated_at: string;
+  estimated_arrival?: string;
+  completion_time?: string;
+  price?: number;
+  payment_status?: "pending" | "paid" | "refunded";
+  rating?: number;
+  review?: string;
 }
 
-export interface MechanicAvailability {
+export interface Notification {
   id: string;
-  mechanic_id: string;
-  day_of_week: number;
-  start_time: string;
-  end_time: string;
-  is_available: boolean;
+  user_id: string;
+  title: string;
+  message: string;
+  type: "info" | "success" | "warning" | "error";
+  read: boolean;
   created_at: string;
-  updated_at: string;
+  action_url?: string;
+  related_id?: string;
+  related_type?: "request" | "payment" | "account" | "system";
 }

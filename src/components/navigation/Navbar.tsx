@@ -8,7 +8,9 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
-import { Phone, Menu, Settings, LogOut } from "lucide-react";
+import { Phone, Menu, Settings, LogOut, User, Moon, Sun } from "lucide-react";
+import NotificationCenter from "../notifications/NotificationCenter";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useNavigate } from "react-router-dom";
 import { auth } from "@/lib/auth";
@@ -79,6 +81,8 @@ const Navbar = ({ logo = "ResQ Auto", isEmergency = false }: NavbarProps) => {
 
           {isAuthenticated ? (
             <div className="flex items-center gap-2">
+              <NotificationCenter />
+              <ThemeToggle />
               {isAdmin && (
                 <Button
                   variant="outline"
@@ -87,6 +91,16 @@ const Navbar = ({ logo = "ResQ Auto", isEmergency = false }: NavbarProps) => {
                 >
                   <Settings className="h-4 w-4" />
                   Admin Panel
+                </Button>
+              )}
+              {!isAdmin && (
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  onClick={() => navigate("/mechanic")}
+                >
+                  <User className="h-4 w-4" />
+                  Dashboard
                 </Button>
               )}
               <Button
@@ -100,12 +114,13 @@ const Navbar = ({ logo = "ResQ Auto", isEmergency = false }: NavbarProps) => {
             </div>
           ) : (
             <div className="flex items-center gap-2">
+              <ThemeToggle />
               <Button
                 variant="outline"
                 className="flex items-center gap-2"
                 onClick={() => navigate("/login")}
               >
-                Admin Login
+                Login
               </Button>
               <Button
                 variant={isEmergency ? "destructive" : "default"}
@@ -132,7 +147,7 @@ const Navbar = ({ logo = "ResQ Auto", isEmergency = false }: NavbarProps) => {
                   <a
                     key={item.label}
                     href={item.href}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors block w-full"
                     onClick={(e) => {
                       if (item.href.startsWith("#")) {
                         e.preventDefault();
@@ -181,12 +196,20 @@ const Navbar = ({ logo = "ResQ Auto", isEmergency = false }: NavbarProps) => {
                   </>
                 ) : (
                   <>
+                    <NotificationCenter />
                     <Button
                       variant="outline"
                       className="flex items-center gap-2 mt-4 w-full"
                       onClick={() => navigate("/login")}
                     >
-                      Admin Login
+                      Login
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2 mt-4 w-full"
+                      onClick={() => navigate("/register")}
+                    >
+                      Register
                     </Button>
                     <Button
                       variant={isEmergency ? "destructive" : "default"}

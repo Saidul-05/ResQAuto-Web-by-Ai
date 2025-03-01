@@ -60,7 +60,27 @@ const FilterControls = ({
 
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Status</h4>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value);
+                  // Track status filter change
+                  try {
+                    import("@/components/analytics/AnalyticsTracker").then(
+                      ({ trackEvent }) => {
+                        trackEvent({
+                          category: "Map",
+                          action: "Filter Change",
+                          label: `Status: ${value}`,
+                          value: 1,
+                        });
+                      },
+                    );
+                  } catch (error) {
+                    console.error("Analytics error:", error);
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
@@ -80,7 +100,24 @@ const FilterControls = ({
                   min={0}
                   max={5}
                   step={0.5}
-                  onValueChange={(value) => setMinRating(value[0])}
+                  onValueChange={(value) => {
+                    setMinRating(value[0]);
+                    // Track rating filter change
+                    try {
+                      import("@/components/analytics/AnalyticsTracker").then(
+                        ({ trackEvent }) => {
+                          trackEvent({
+                            category: "Map",
+                            action: "Filter Change",
+                            label: `Rating: ${value[0]}`,
+                            value: value[0],
+                          });
+                        },
+                      );
+                    } catch (error) {
+                      console.error("Analytics error:", error);
+                    }
+                  }}
                 />
                 <span className="w-12 text-center">{minRating}</span>
               </div>
@@ -94,7 +131,24 @@ const FilterControls = ({
                   min={0.5}
                   max={10}
                   step={0.5}
-                  onValueChange={(value) => setMaxDistance(value[0])}
+                  onValueChange={(value) => {
+                    setMaxDistance(value[0]);
+                    // Track distance filter change
+                    try {
+                      import("@/components/analytics/AnalyticsTracker").then(
+                        ({ trackEvent }) => {
+                          trackEvent({
+                            category: "Map",
+                            action: "Filter Change",
+                            label: `Distance: ${value[0]} miles`,
+                            value: value[0],
+                          });
+                        },
+                      );
+                    } catch (error) {
+                      console.error("Analytics error:", error);
+                    }
+                  }}
                 />
                 <span className="w-12 text-center">{maxDistance}</span>
               </div>
@@ -110,7 +164,26 @@ const FilterControls = ({
                     <Checkbox
                       id={`specialty-${specialty}`}
                       checked={specialtyFilter.includes(specialty)}
-                      onCheckedChange={() => toggleSpecialtyFilter(specialty)}
+                      onCheckedChange={() => {
+                        toggleSpecialtyFilter(specialty);
+                        // Track specialty filter change
+                        try {
+                          import(
+                            "@/components/analytics/AnalyticsTracker"
+                          ).then(({ trackEvent }) => {
+                            trackEvent({
+                              category: "Map",
+                              action: "Filter Change",
+                              label: `Specialty: ${specialty} - ${specialtyFilter.includes(specialty) ? "Removed" : "Added"}`,
+                              value: specialtyFilter.includes(specialty)
+                                ? 0
+                                : 1,
+                            });
+                          });
+                        } catch (error) {
+                          console.error("Analytics error:", error);
+                        }
+                      }}
                     />
                     <Label
                       htmlFor={`specialty-${specialty}`}
@@ -124,10 +197,52 @@ const FilterControls = ({
             </div>
 
             <div className="flex justify-between">
-              <Button variant="outline" size="sm" onClick={resetFilters}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  resetFilters();
+                  // Track filter reset in analytics
+                  try {
+                    import("@/components/analytics/AnalyticsTracker").then(
+                      ({ trackEvent }) => {
+                        trackEvent({
+                          category: "Map",
+                          action: "Reset Filters",
+                          label: "All Filters",
+                          value: 1,
+                        });
+                      },
+                    );
+                  } catch (error) {
+                    console.error("Analytics error:", error);
+                  }
+                }}
+              >
                 Reset
               </Button>
-              <Button size="sm">Apply Filters</Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  // Track filter application in analytics
+                  try {
+                    import("@/components/analytics/AnalyticsTracker").then(
+                      ({ trackEvent }) => {
+                        trackEvent({
+                          category: "Map",
+                          action: "Apply Filters",
+                          label: `Status: ${statusFilter}, Specialties: ${specialtyFilter.length}, Rating: ${minRating}, Distance: ${maxDistance}`,
+                          value: 1,
+                        });
+                      },
+                    );
+                  } catch (error) {
+                    console.error("Analytics error:", error);
+                  }
+                }}
+              >
+                Apply Filters
+              </Button>
             </div>
           </div>
         </PopoverContent>

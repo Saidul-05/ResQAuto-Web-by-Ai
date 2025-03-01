@@ -1,241 +1,357 @@
 import React, { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Clock, Car, Phone, Star } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  DialogDescription,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Star,
+  MapPin,
+  Phone,
+  Clock,
+  X,
+  CheckCircle,
+  AlertTriangle,
+} from "lucide-react";
+import { trackEvent } from "@/components/analytics/AnalyticsTracker";
+
+type RequestStatus =
+  | "pending"
+  | "matched"
+  | "en_route"
+  | "arrived"
+  | "completed"
+  | "cancelled";
 
 interface RequestTrackerProps {
-  requestId?: string;
-  status?:
-    | "pending"
-    | "matched"
-    | "en_route"
-    | "arrived"
-    | "completed"
-    | "cancelled";
-  mechanicName?: string;
-  mechanicPhone?: string;
-  estimatedArrival?: string;
-  location?: string;
-  onCancel?: () => void;
-  onReviewSubmit?: (rating: number, review: string) => void;
+  requestId: string;
+  status: RequestStatus;
+  mechanicName: string;
+  mechanicPhone: string;
+  estimatedArrival: string;
+  location: string;
+  onCancel: () => void;
+  onReviewSubmit: (rating: number, review: string) => void;
 }
 
-const RequestTracker = ({
-  requestId = "REQ-12345",
-  status = "en_route",
-  mechanicName = "John Smith",
-  mechanicPhone = "(555) 123-4567",
-  estimatedArrival = "10-15 minutes",
-  location = "Current Location",
+const RequestTracker: React.FC<RequestTrackerProps> = ({
+  requestId,
+  status,
+  mechanicName,
+  mechanicPhone,
+  estimatedArrival,
+  location,
   onCancel,
   onReviewSubmit,
-}: RequestTrackerProps) => {
-  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
-  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+}) => {
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState("");
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
 
-  const statusSteps = {
-    pending: 0,
-    matched: 25,
-    en_route: 50,
-    arrived: 75,
-    completed: 100,
-    cancelled: 0,
+  // Calculate progress percentage based on status
+  const getProgressPercentage = () => {
+    const statusMap: Record<RequestStatus, number> = {
+      pending: 10,
+      matched: 30,
+      en_route: 50,
+      arrived: 75,
+      completed: 100,
+      cancelled: 0,
+    };
+    return statusMap[status] || 0;
   };
 
-  const statusMessages = {
-    pending: "Looking for nearby mechanics...",
-    matched: "Mechanic found and confirmed",
-    en_route: "Mechanic is on the way",
-    arrived: "Mechanic has arrived",
-    completed: "Service completed",
-    cancelled: "Request cancelled",
+  // Get status display text
+  const getStatusText = () => {
+    const statusMap: Record<RequestStatus, string> = {
+      pending: "Finding a mechanic",
+      matched: "Mechanic assigned",
+      en_route: "Mechanic en route",
+      arrived: "Mechanic arrived",
+      completed: "Service completed",
+      cancelled: "Request cancelled",
+    };
+    return statusMap[status] || "Unknown status";
   };
 
-  const handleCancelRequest = () => {
-    setIsCancelDialogOpen(false);
-    onCancel?.();
+  // Get status badge variant
+  const getStatusVariant = () => {
+    const variantMap: Record<
+      RequestStatus,
+      "default" | "secondary" | "outline" | "destructive"
+    > = {
+      pending: "secondary",
+      matched: "secondary",
+      en_route: "default",
+      arrived: "default",
+      completed: "default",
+      cancelled: "destructive",
+    };
+    return variantMap[status] || "secondary";
   };
 
-  const handleSubmitReview = () => {
-    // Validate review before submission
-    if (review.trim().length < 10 && rating < 5) {
-      // Only require detailed feedback for ratings below 5 stars
-      alert(
-        "Please provide more details about your experience to help us improve.",
-      );
-      return;
+  // Get status icon
+  const getStatusIcon = () => {
+    switch (status) {
+      case "completed":
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case "cancelled":
+        return <X className="h-5 w-5 text-red-500" />;
+      case "arrived":
+        return <MapPin className="h-5 w-5 text-blue-500" />;
+      case "en_route":
+        return <Clock className="h-5 w-5 text-blue-500" />;
+      default:
+        return null;
     }
+  };
 
-    setIsReviewDialogOpen(false);
-    onReviewSubmit?.(rating, review);
+  // Handle review submission
+  const handleReviewSubmit = () => {
+    onReviewSubmit(rating, review);
+    setShowReviewDialog(false);
+
+    // Track review submission
+    trackEvent({
+      category: "Review",
+      action: "Submit",
+      label: `Rating: ${rating}`,
+      value: rating,
+    });
+  };
+
+  // Handle cancel request
+  const handleCancelRequest = () => {
+    setShowCancelDialog(false);
+    onCancel();
+
+    // Track cancellation
+    trackEvent({
+      category: "Request",
+      action: "Cancel",
+      label: status,
+      value: 0,
+    });
+  };
+
+  // Handle phone call
+  const handlePhoneCall = () => {
+    // Track phone call
+    trackEvent({
+      category: "Contact",
+      action: "Call Mechanic",
+      label: mechanicName,
+      value: 1,
+    });
+
+    window.location.href = `tel:${mechanicPhone.replace(/[^0-9]/g, "")}`;
   };
 
   return (
-    <>
-      <Card className="w-full max-w-md p-6 bg-white shadow-lg">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Emergency Request</h3>
-            <Badge variant={status === "cancelled" ? "destructive" : "default"}>
-              {status.charAt(0).toUpperCase() +
-                status.slice(1).replace("_", " ")}
-            </Badge>
+    <Card className="w-full max-w-[480px] p-6 bg-white shadow-lg dark:bg-gray-800 dark:text-white">
+      <div className="mb-6">
+        <div className="flex justify-between items-start mb-2">
+          <h2 className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            Request Tracking
+          </h2>
+          <Badge variant={getStatusVariant()}>{getStatusText()}</Badge>
+        </div>
+        <p className="text-gray-600 text-sm dark:text-gray-300">
+          Request ID: {requestId}
+        </p>
+      </div>
+
+      {/* Progress tracker */}
+      <div className="mb-6">
+        <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
+          <span>Request Sent</span>
+          <span>Completed</span>
+        </div>
+        <Progress value={getProgressPercentage()} className="h-2" />
+        <div className="flex justify-between mt-2">
+          <div className="flex items-center gap-1 text-sm">
+            <Clock className="h-4 w-4 text-gray-400" />
+            <span>{estimatedArrival}</span>
           </div>
+          {getStatusIcon() && (
+            <div className="flex items-center gap-1 text-sm">
+              {getStatusIcon()}
+              <span>
+                {status === "completed"
+                  ? "Completed"
+                  : status === "cancelled"
+                    ? "Cancelled"
+                    : "In Progress"}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
 
-          <Progress value={statusSteps[status]} className="h-2" />
+      <Separator className="my-4" />
 
-          <div className="flex items-center gap-3">
-            <Clock className="h-6 w-6 text-blue-500" />
+      {/* Mechanic info */}
+      <div className="mb-6">
+        <h3 className="font-semibold mb-3">Mechanic Details</h3>
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0">
+              <span className="font-medium text-blue-600 dark:text-blue-300">
+                {mechanicName
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")}
+              </span>
+            </div>
             <div>
-              <p className="font-medium">{statusMessages[status]}</p>
-              <p className="text-sm text-muted-foreground">
-                Request ID: {requestId}
+              <p className="font-medium">{mechanicName}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {status === "pending"
+                  ? "Assigning mechanic..."
+                  : "Assigned to your request"}
               </p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <Phone className="h-4 w-4 text-gray-400" />
+            <Button
+              variant="link"
+              className="p-0 h-auto text-blue-600 dark:text-blue-400"
+              onClick={handlePhoneCall}
+            >
+              {mechanicPhone}
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-gray-400" />
+            <span className="text-sm">{location}</span>
+          </div>
+        </div>
+      </div>
 
-          {status !== "pending" && status !== "cancelled" && (
-            <div className="border rounded-lg p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <Car className="h-5 w-5" />
-                <div>
-                  <p className="font-medium">Mechanic Details</p>
-                  <p className="text-sm text-muted-foreground">
-                    {mechanicName} • {mechanicPhone}
-                  </p>
+      {/* Action buttons */}
+      <div className="space-y-3">
+        {status === "completed" ? (
+          <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
+            <DialogTrigger asChild>
+              <Button className="w-full">Leave a Review</Button>
+            </DialogTrigger>
+            <DialogContent className="dark:bg-gray-800 dark:text-white">
+              <DialogHeader>
+                <DialogTitle>Rate Your Experience</DialogTitle>
+                <DialogDescription className="dark:text-gray-300">
+                  How was your experience with {mechanicName}?
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <div className="flex items-center justify-center gap-1 mb-4">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`h-8 w-8 cursor-pointer ${star <= rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300 dark:text-gray-600"}`}
+                      onClick={() => setRating(star)}
+                    />
+                  ))}
                 </div>
+                <Textarea
+                  placeholder="Share your experience..."
+                  value={review}
+                  onChange={(e) => setReview(e.target.value)}
+                  className="min-h-[100px] dark:bg-gray-700 dark:border-gray-600"
+                />
               </div>
-              <div className="flex items-center gap-3">
-                <MapPin className="h-5 w-5" />
-                <div>
-                  <p className="text-sm">
-                    Estimated arrival: {estimatedArrival}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{location}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Phone className="h-5 w-5" />
+              <DialogFooter>
                 <Button
                   variant="outline"
-                  size="sm"
-                  className="text-sm"
-                  onClick={() =>
-                    (window.location.href = `tel:${mechanicPhone.replace(/[^0-9]/g, "")}`)
-                  }
+                  onClick={() => setShowReviewDialog(false)}
+                  className="dark:border-gray-600 dark:text-gray-300"
                 >
-                  Call Mechanic
+                  Cancel
                 </Button>
-              </div>
-            </div>
-          )}
-
-          <div className="pt-2">
-            {status === "completed" ? (
-              <Button
-                variant="default"
-                className="w-full"
-                onClick={() => setIsReviewDialogOpen(true)}
-              >
-                Submit Review
-              </Button>
-            ) : (
+                <Button onClick={handleReviewSubmit}>Submit Review</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        ) : status !== "cancelled" ? (
+          <AlertDialog
+            open={showCancelDialog}
+            onOpenChange={setShowCancelDialog}
+          >
+            <AlertDialogTrigger asChild>
               <Button
                 variant="outline"
-                className="w-full"
-                disabled={["pending", "matched", "en_route"].includes(status)}
-                onClick={() => setIsCancelDialogOpen(true)}
+                className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/30"
               >
                 Cancel Request
               </Button>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      {/* Review Dialog */}
-      <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rate Your Experience</DialogTitle>
-            <DialogDescription>
-              Please rate your experience with {mechanicName}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4 space-y-4">
-            <div className="flex justify-center">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => setRating(star)}
-                  className="p-1"
+            </AlertDialogTrigger>
+            <AlertDialogContent className="dark:bg-gray-800 dark:text-white">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Cancel Emergency Request?</AlertDialogTitle>
+                <AlertDialogDescription className="dark:text-gray-300">
+                  Are you sure you want to cancel your emergency request? This
+                  action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="dark:bg-gray-700 dark:text-white dark:border-gray-600">
+                  No, Keep Request
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleCancelRequest}
+                  className="bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
                 >
-                  <Star
-                    className={`h-8 w-8 ${star <= rating ? "text-yellow-400 fill-current" : "text-gray-300"}`}
-                  />
-                </button>
-              ))}
-            </div>
-
-            <Textarea
-              placeholder="Share your experience..."
-              value={review}
-              onChange={(e) => setReview(e.target.value)}
-              className="min-h-[100px]"
-            />
+                  Yes, Cancel Request
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <div className="flex items-center justify-center p-3 bg-red-50 dark:bg-red-900/20 rounded-md border border-red-100 dark:border-red-900">
+            <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
+            <p className="text-sm text-red-600 dark:text-red-400">
+              This request has been cancelled
+            </p>
           </div>
+        )}
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsReviewDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleSubmitReview}>Submit Review</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <Button
+          variant="outline"
+          className="w-full dark:border-gray-700"
+          onClick={handlePhoneCall}
+        >
+          <Phone className="h-4 w-4 mr-2" />
+          Call Mechanic
+        </Button>
+      </div>
 
-      {/* Cancel Dialog */}
-      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel Request</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to cancel your emergency request?
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsCancelDialogOpen(false)}
-            >
-              No, Keep Request
-            </Button>
-            <Button variant="destructive" onClick={handleCancelRequest}>
-              Yes, Cancel Request
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+      {/* Real-time updates notice */}
+      <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-6">
+        Updates will appear in real-time as your request progresses
+      </p>
+    </Card>
   );
 };
 
