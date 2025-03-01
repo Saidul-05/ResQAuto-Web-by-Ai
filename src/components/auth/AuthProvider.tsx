@@ -16,15 +16,15 @@ import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDhPbVR8yUvfQkbtOaD0I5JczmgtYujECk",
   authDomain:
-    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "demo-app.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project",
+    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "resqauto-633af.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "resqauto-633af",
   storageBucket:
-    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "demo-bucket.appspot.com",
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "resqauto-633af.firebasestorage.app",
   messagingSenderId:
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789:web:abcdef",
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1034270126335",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1034270126335:web:2883e9d2d9db211def5cca",
 };
 
 // Initialize Firebase (with safeguards for development)
